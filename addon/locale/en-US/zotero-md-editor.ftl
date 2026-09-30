@@ -15,3 +15,4 @@ md-editor-conflict-keep = Keep My Version
 md-editor-conflict-load = Load Version on Disk
 md-editor-save-error = Couldn’t save “{ $name }”: { $error }
 md-editor-linked-notice = This is a linked file. Zotero doesn’t sync linked files, so this note and its images stay on this computer.
+md-editor-insert-item = Insert Zotero Item (or type @)

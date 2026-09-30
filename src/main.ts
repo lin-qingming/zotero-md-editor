@@ -16,7 +16,8 @@
  *    plugins load and would throw on a tab type it has no restoreState hook for.
  */
 
-import { MESSAGE_KEY, type Envelope, type ToHost, type ToPage } from './types';
+import { markdownForAnnotations, markdownForItems, searchItems, type DraggedAnnotation } from './links';
+import { MESSAGE_KEY, type Envelope, type Insertion, type RequestToHost, type ToHost, type ToPage } from './types';
 
 declare const Zotero: any;
 declare const Services: any;
@@ -265,7 +266,6 @@ async function viewWith(win: any, item: any, mode: 'editor' | 'external') {
 class Session {
 	readonly itemID: number;
 	private item: any;
-	private iframe: any = null;
 	private pageWin: any = null;
 	/** Latest Markdown reported by the page; null until the user edits */
 	private markdown: string | null = null;
@@ -293,7 +293,6 @@ class Session {
 		iframe.setAttribute('src', EDITOR_URL);
 		container.style.display = 'flex';
 		container.append(iframe);
-		this.iframe = iframe;
 
 		let [markdown] = await Promise.all([this.read(), domLoaded]);
 		if (this.closed) {
@@ -303,6 +302,8 @@ class Session {
 		// editor.js has run by DOMContentLoaded, so it's listening already
 		this.pageWin = iframe.contentWindow;
 		this.pageWin.addEventListener('message', this.onMessage);
+		// Items and annotations dragged from Zotero carry their data in types the page can't read
+		this.pageWin.addEventListener('drop', this.onDrop, true);
 
 		let isLinked = this.item.attachmentLinkMode === Zotero.Attachments.LINK_MODE_LINKED_FILE;
 		let initialized = new Promise<void>((resolve) => this.resolveInitialized = resolve);
@@ -311,6 +312,9 @@ class Session {
 			markdown,
 			lang: vditorLang(),
 			notice: isLinked ? await this.l10n('md-editor-linked-notice') : null,
+			strings: {
+				insertItem: await this.l10n('md-editor-insert-item'),
+			},
 		});
 		await initialized;
 		this.post({ action: 'focus' });
@@ -338,32 +342,96 @@ class Session {
 			case 'save':
 				void this.saveNow();
 				break;
-			case 'saveAsset': {
+			case 'saveAsset':
+			case 'loadAsset':
+			case 'searchItems':
+			case 'pickItems': {
 				let requestID = message.requestID;
-				this.saveAsset(String(message.name), Uint8Array.fromBase64(String(message.base64)))
+				this.answer(message)
 					.catch((e) => {
 						Zotero.logError(e);
 						return null;
 					})
-					.then((link) => this.post({ action: 'assetSaved', requestID, link }));
-				break;
-			}
-			case 'loadAsset': {
-				let requestID = message.requestID;
-				this.loadAsset(String(message.src))
-					.catch(() => null)
-					.then((dataURL) => this.post({ action: 'assetLoaded', requestID, dataURL }));
+					.then((value) => this.post({ action: 'reply', requestID, value }));
 				break;
 			}
 			case 'openURL': {
+				// ZoteroPane handles zotero://select and zotero://open itself and hands web links to
+				// the browser -- the same path links in Zotero's own notes take
 				let url = String(message.url);
-				if (/^(https?|mailto):/i.test(url)) {
-					Zotero.launchURL(url);
+				if (/^(zotero|https?|mailto):/i.test(url)) {
+					this.win.ZoteroPane.loadURI(url);
 				}
 				break;
 			}
 		}
 	};
+
+	private async answer(message: RequestToHost): Promise<unknown> {
+		switch (message.action) {
+			case 'saveAsset':
+				return this.saveAsset(String(message.name), Uint8Array.fromBase64(String(message.base64)));
+			case 'loadAsset':
+				return this.loadAsset(String(message.src));
+			case 'searchItems':
+				return searchItems(String(message.query));
+			case 'pickItems':
+				return this.pickItems();
+		}
+	}
+
+	/** Zotero's own item picker, as used for "Change Parent Item" */
+	private async pickItems(): Promise<Insertion | null> {
+		let io: { dataIn: null; dataOut: number[] | null; [key: string]: unknown } = {
+			dataIn: null,
+			dataOut: null,
+			itemTreeID: 'md-editor-select-items-dialog',
+			hideCollections: ['duplicates', 'trash', 'feeds', 'retracted'],
+		};
+		this.win.openDialog(
+			'chrome://zotero/content/selectItemsDialog.xhtml',
+			'',
+			'chrome,dialog=no,modal,centerscreen,resizable=yes',
+			io,
+		);
+		if (!io.dataOut?.length) {
+			return null;
+		}
+		return markdownForItems(await Zotero.Items.getAsync(io.dataOut));
+	}
+
+	private onDrop = (event: any) => {
+		let dataTransfer = event.dataTransfer;
+		let itemIDs: string = dataTransfer?.getData('zotero/item') || '';
+		let annotationsJSON: string = dataTransfer?.getData('zotero/annotation') || '';
+		if (!itemIDs && !annotationsJSON) {
+			return;
+		}
+		// Keep Vditor from inserting the plain-text version as well
+		event.preventDefault();
+		event.stopPropagation();
+		let { clientX: x, clientY: y } = event;
+		void (async () => {
+			let insertion = annotationsJSON
+				? await markdownForAnnotations(
+					JSON.parse(annotationsJSON) as DraggedAnnotation[],
+					(dataURL) => this.saveDataURL(dataURL),
+				)
+				: markdownForItems(await Zotero.Items.getAsync(itemIDs.split(',').map(Number)));
+			if (insertion && !this.closed) {
+				this.post({ action: 'insertAt', ...insertion, x, y });
+			}
+		})().catch((e) => Zotero.logError(e));
+	};
+
+	private async saveDataURL(dataURL: string): Promise<string | null> {
+		let match = dataURL.match(/^data:image\/(png|jpeg|webp|gif);base64,(.*)$/);
+		if (!match) {
+			return null;
+		}
+		let ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+		return this.saveAsset(`annotation-${timestamp()}.${ext}`, Uint8Array.fromBase64(match[2]));
+	}
 
 	private async read(): Promise<string> {
 		let text: string = await IOUtils.readUTF8(this.path);
@@ -514,6 +582,7 @@ class Session {
 		void this.saveNow();
 		this.closed = true;
 		this.pageWin?.removeEventListener('message', this.onMessage);
+		this.pageWin?.removeEventListener('drop', this.onDrop, true);
 		this.pageWin = null;
 	}
 }
@@ -549,6 +618,14 @@ function resolveLocalPath(src: string, baseDir: string): string | null {
 	catch {
 		return null;
 	}
+}
+
+/** "20260930121500123" */
+function timestamp(): string {
+	let d = new Date();
+	let pad = (n: number, width = 2) => String(n).padStart(width, '0');
+	return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`
+		+ `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}${pad(d.getMilliseconds(), 3)}`;
 }
 
 async function uniqueFileName(dir: string, name: string): Promise<string> {

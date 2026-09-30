@@ -15,3 +15,4 @@ md-editor-conflict-keep = 保留我的版本
 md-editor-conflict-load = 加载磁盘上的版本
 md-editor-save-error = 无法保存“{ $name }”：{ $error }
 md-editor-linked-notice = 这是一个链接文件。Zotero 不同步链接文件，所以这篇笔记和其中的图片只保存在本机。
+md-editor-insert-item = 插入 Zotero 条目（或输入 @ 搜索）

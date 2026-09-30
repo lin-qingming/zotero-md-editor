@@ -55,3 +55,17 @@ body {
 .vditor-ir pre.vditor-reset {
 	background-color: var(--panel-background-color);
 }
+
+/* "@" autocomplete: title, then creator and year */
+.md-hint-detail {
+	margin-left: 6px;
+	opacity: 0.6;
+	font-size: 0.9em;
+}
+
+/* Links follow on Cmd/Ctrl+click; say so while the key is held */
+body.md-accel .vditor-ir__node[data-type="a"],
+body.md-accel .vditor-reset a {
+	cursor: pointer;
+	text-decoration: underline;
+}

@@ -52,7 +52,29 @@ npm run xpi
   stored the same way and linked instead of embedded.
 - Saves automatically about a second after you stop typing, and on **Cmd/Ctrl+S** and when the tab
   closes.
-- **Cmd/Ctrl+click** a link to open it in the browser.
+- **Cmd/Ctrl+click** a link to follow it: web links open in the browser, Zotero links jump
+  inside Zotero (see below).
+
+### Linking to Zotero items
+
+Three ways to insert a link to something in your library:
+
+- **Type `@`** and part of a title, creator or year, then pick from the list.
+- **Drag** items from the items list, or annotations from the PDF/EPUB reader's sidebar, into
+  the note. An annotation becomes a quote with a link back to its page, followed by its comment.
+  Image annotations bring their image along, saved beside the note like a pasted screenshot.
+- **Click the Z button** in the toolbar to pick items in Zotero's item selector.
+
+They're ordinary Markdown links using Zotero's own URLs, so they work on every synced device
+and also from Typora or a browser, which pass `zotero://` links to Zotero:
+
+| Link to | Looks like | Cmd/Ctrl+click |
+| --- | --- | --- |
+| An item | `[Lovelace (1843) Title](zotero://select/library/items/ABCD1234)` | Shows it in the library |
+| A PDF, EPUB or other file | `[Lovelace (1843) Title · PDF](zotero://open/library/items/EFGH5678)` | Opens it; another Markdown note opens in this editor |
+| An annotation | `> quoted text ([p. 7](zotero://open/library/items/EFGH5678?page=7&annotation=IJKL9012))` | Opens the PDF at that annotation |
+
+Group library items use `groups/<id>/items/…` in place of `library/items/…`.
 
 The editor is [Vditor](https://github.com/Vanessa219/vditor) in its instant-rendering mode,
 similar to Typora. The toolbar's mode button switches to split source view. KaTeX math,
@@ -93,5 +115,9 @@ Vditor extras are left out to keep the plugin around 3 MB, so those blocks show 
 - The two sides talk via `postMessage` (`src/types.ts`), with binary data as base64. As a tab
   closes, the host also reads any edit Vditor hasn't reported yet, synchronously, so the last
   keystrokes aren't lost.
+- Links to Zotero go through `ZoteroPane.loadURI`, the same path links in Zotero's own notes
+  take. Items and annotations dragged from Zotero carry their data as `zotero/item` and
+  `zotero/annotation`, which an unprivileged page can't read, so the host catches those drops
+  on the page's window first, as Zotero's note editor does.
 - Notes are written through a dotfile temp path (`.<name>.md.tmp`), because Zotero leaves
   dotfiles out of the sync ZIP.
