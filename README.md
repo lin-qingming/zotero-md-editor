@@ -28,7 +28,7 @@ what triggers the upload.
 
 ## Install
 
-Download `zotero-md-editor-0.1.0.xpi` from
+Download the latest `zotero-md-editor-<version>.xpi` from
 [Releases](https://github.com/lin-qingming/zotero-md-editor/releases), then in Zotero:
 **Tools → Plugins → gear icon → Install Plugin From File…**. Requires Zotero 8 or later.
 Updates arrive through Zotero's plugin updater.
