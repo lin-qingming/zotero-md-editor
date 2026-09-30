@@ -16,7 +16,7 @@
  *    plugins load and would throw on a tab type it has no restoreState hook for.
  */
 
-import { markdownForAnnotations, markdownForItems, searchItems, type DraggedAnnotation } from './links';
+import { markdownForAnnotations, markdownForItems, parseRectLink, searchItems, type DraggedAnnotation } from './links';
 import { MESSAGE_KEY, type Envelope, type Insertion, type RequestToHost, type ToHost, type ToPage } from './types';
 
 declare const Zotero: any;
@@ -303,6 +303,7 @@ class Session {
 		this.pageWin = iframe.contentWindow;
 		this.pageWin.addEventListener('message', this.onMessage);
 		// Items and annotations dragged from Zotero carry their data in types the page can't read
+		// on a drop (it can on a paste, so editor.ts handles those)
 		this.pageWin.addEventListener('drop', this.onDrop, true);
 
 		let isLinked = this.item.attachmentLinkMode === Zotero.Attachments.LINK_MODE_LINKED_FILE;
@@ -345,7 +346,8 @@ class Session {
 			case 'saveAsset':
 			case 'loadAsset':
 			case 'searchItems':
-			case 'pickItems': {
+			case 'pickItems':
+			case 'annotationsToMarkdown': {
 				let requestID = message.requestID;
 				this.answer(message)
 					.catch((e) => {
@@ -359,7 +361,12 @@ class Session {
 				// ZoteroPane handles zotero://select and zotero://open itself and hands web links to
 				// the browser -- the same path links in Zotero's own notes take
 				let url = String(message.url);
-				if (/^(zotero|https?|mailto):/i.test(url)) {
+				let rectLink = parseRectLink(url);
+				if (rectLink) {
+					// Through viewAttachment, which downloads the file first if needed
+					void this.win.ZoteroPane.viewAttachment(rectLink.item.id, null, false, { location: rectLink.location });
+				}
+				else if (/^(zotero|https?|mailto):/i.test(url)) {
 					this.win.ZoteroPane.loadURI(url);
 				}
 				break;
@@ -377,6 +384,8 @@ class Session {
 				return searchItems(String(message.query));
 			case 'pickItems':
 				return this.pickItems();
+			case 'annotationsToMarkdown':
+				return this.markdownForAnnotations(String(message.json));
 		}
 	}
 
@@ -410,19 +419,24 @@ class Session {
 		// Keep Vditor from inserting the plain-text version as well
 		event.preventDefault();
 		event.stopPropagation();
-		let { clientX: x, clientY: y } = event;
+		let point = { x: event.clientX, y: event.clientY };
 		void (async () => {
 			let insertion = annotationsJSON
-				? await markdownForAnnotations(
-					JSON.parse(annotationsJSON) as DraggedAnnotation[],
-					(dataURL) => this.saveDataURL(dataURL),
-				)
+				? await this.markdownForAnnotations(annotationsJSON)
 				: markdownForItems(await Zotero.Items.getAsync(itemIDs.split(',').map(Number)));
 			if (insertion && !this.closed) {
-				this.post({ action: 'insertAt', ...insertion, x, y });
+				this.post({ action: 'insert', ...insertion, point });
 			}
 		})().catch((e) => Zotero.logError(e));
 	};
+
+	private markdownForAnnotations(json: string): Promise<Insertion | null> {
+		let parsed = JSON.parse(json);
+		return markdownForAnnotations(
+			(Array.isArray(parsed) ? parsed : [parsed]) as DraggedAnnotation[],
+			(dataURL) => this.saveDataURL(dataURL),
+		);
+	}
 
 	private async saveDataURL(dataURL: string): Promise<string | null> {
 		let match = dataURL.match(/^data:image\/(png|jpeg|webp|gif);base64,(.*)$/);

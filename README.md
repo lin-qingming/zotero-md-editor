@@ -55,6 +55,21 @@ npm run xpi
 - **Cmd/Ctrl+click** a link to follow it: web links open in the browser, Zotero links jump
   inside Zotero (see below).
 
+### Quoting from PDFs
+
+Select text in Zotero's PDF reader, **copy**, and **paste** it into a note. It arrives as a quote
+with a link back to where it came from; **Cmd/Ctrl+click** the link to jump back to that spot in
+the PDF, where the passage flashes. Copying an annotation (select it in the sidebar, then copy) does
+the same and links to the annotation itself. EPUBs and web snapshots work too.
+
+```markdown
+> the Analytical Engine weaves algebraic patterns ([p. 12](zotero://open/library/items/EFGH5678?page=12&rect=72,380,481,412))
+```
+
+`rect=` is this plugin's addition: copied text that isn't an annotation has nothing else to point
+at. Zotero ignores parameters it doesn't know, so opened from Typora or a browser the link still
+goes to the right page; in this editor it goes to the passage itself.
+
 ### Linking to Zotero items
 
 Three ways to insert a link to something in your library:
@@ -73,6 +88,7 @@ and also from Typora or a browser, which pass `zotero://` links to Zotero:
 | An item | `[Lovelace (1843) Title](zotero://select/library/items/ABCD1234)` | Shows it in the library |
 | A PDF, EPUB or other file | `[Lovelace (1843) Title · PDF](zotero://open/library/items/EFGH5678)` | Opens it; another Markdown note opens in this editor |
 | An annotation | `> quoted text ([p. 7](zotero://open/library/items/EFGH5678?page=7&annotation=IJKL9012))` | Opens the PDF at that annotation |
+| Copied text | `> quoted text ([p. 7](zotero://open/library/items/EFGH5678?page=7&rect=72,380,481,412))` | Opens the PDF at that passage and flashes it |
 
 Group library items use `groups/<id>/items/…` in place of `library/items/…`.
 
@@ -117,7 +133,11 @@ Vditor extras are left out to keep the plugin around 3 MB, so those blocks show 
   keystrokes aren't lost.
 - Links to Zotero go through `ZoteroPane.loadURI`, the same path links in Zotero's own notes
   take. Items and annotations dragged from Zotero carry their data as `zotero/item` and
-  `zotero/annotation`, which an unprivileged page can't read, so the host catches those drops
-  on the page's window first, as Zotero's note editor does.
+  `zotero/annotation`, which an unprivileged page can't read from a drop, so the host catches
+  drops on the page's window first, as Zotero's note editor does. On a paste the page can read
+  them, and does, like the note editor.
+- Vditor keeps hidden editing elements for all three modes and parks the selection on the
+  editor root after re-rendering, so the page tracks the last real cursor position itself and
+  inserts there.
 - Notes are written through a dotfile temp path (`.<name>.md.tmp`), because Zotero leaves
   dotfiles out of the sync ZIP.

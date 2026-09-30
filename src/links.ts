@@ -7,6 +7,13 @@
  *   zotero://select/library/items/KEY                 show the item in the library
  *   zotero://open/library/items/KEY                   open a file attachment (PDF, EPUB, .md, ...)
  *   zotero://open/library/items/KEY?page=5&annotation=ANNOTKEY
+ *   zotero://open/library/items/KEY?page=5&rect=72,500,540,530   text copied from a PDF
+ *
+ * rect= is ours: for text copied without making an annotation there's no annotation to point
+ * at, so the link carries the selection's bounding box (PDF points) on that page. Zotero ignores
+ * parameters it doesn't know, so elsewhere the link still opens the right page; in this editor
+ * openURL() in main.ts reads it and scrolls to and flashes the passage. EPUB and snapshot
+ * selections use Zotero's own cfi= and sel= instead.
  *
  * Group items use groups/<groupID>/items/KEY in place of library/items/KEY.
  */
@@ -26,7 +33,8 @@ function libraryPath(item: any): string {
 
 function zoteroURI(action: 'select' | 'open', item: any, params: Record<string, string | number> = {}): string {
 	let query = Object.entries(params)
-		.map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
+		// Commas are fine in a query and keep rect=72,500,540,530 readable in the Markdown
+		.map(([key, value]) => `${key}=${encodeURIComponent(String(value)).replace(/%2C/gi, ',')}`)
 		.join('&');
 	return `zotero://${action}/${libraryPath(item)}/items/${item.key}` + (query ? '?' + query : '');
 }
@@ -83,7 +91,14 @@ export interface DraggedAnnotation {
 	text?: string;
 	comment?: string;
 	pageLabel?: string;
-	position?: { pageIndex?: number };
+	position?: {
+		/** PDF */
+		pageIndex?: number;
+		rects?: number[][];
+		/** EPUB ("FragmentSelector", an EPUB CFI) and snapshots ("CssSelector") */
+		type?: string;
+		value?: string;
+	};
 	attachmentItemID?: number;
 	image?: string;
 }
@@ -104,14 +119,23 @@ export async function markdownForAnnotations(
 		}
 
 		let params: Record<string, string | number> = {};
-		let pageIndex = annotation.position?.pageIndex;
-		if (typeof pageIndex === 'number') {
-			params.page = pageIndex + 1;
+		let position = annotation.position || {};
+		if (typeof position.pageIndex === 'number') {
+			params.page = position.pageIndex + 1;
 		}
-		// Text dragged straight from the page arrives as an unsaved annotation, which has no key
-		// to link to; the page number still gets you there
+		// Text copied or dragged straight from the page arrives as an unsaved annotation, which
+		// has no key to link to, so point at the text itself
 		if (annotation.id && Zotero.Items.getByLibraryAndKey(attachment.libraryID, annotation.id)) {
 			params.annotation = annotation.id;
+		}
+		else if (position.type === 'FragmentSelector' && position.value) {
+			params.cfi = position.value;
+		}
+		else if (position.type === 'CssSelector' && position.value) {
+			params.sel = position.value;
+		}
+		else if (position.rects?.length) {
+			params.rect = boundingBox(position.rects).map(Math.round).join(',');
 		}
 		let where = annotation.pageLabel ? `p. ${annotation.pageLabel}` : itemLabel(attachment.parentItem || attachment);
 		let link = `[${escapeLabel(where)}](${zoteroURI('open', attachment, params)})`;
@@ -139,6 +163,42 @@ export async function markdownForAnnotations(
 		blocks.push(lines.join('\n'));
 	}
 	return blocks.length ? { markdown: blocks.join('\n\n'), block: true } : null;
+}
+
+function boundingBox(rects: number[][]): number[] {
+	return [
+		Math.min(...rects.map((r) => r[0])),
+		Math.min(...rects.map((r) => r[1])),
+		Math.max(...rects.map((r) => r[2])),
+		Math.max(...rects.map((r) => r[3])),
+	];
+}
+
+/**
+ * Where a zotero://open link with our rect= parameter points, as a reader location, or null
+ * for any other link
+ */
+export function parseRectLink(url: string): { item: any; location: object } | null {
+	let match = url.match(/^zotero:\/\/open\/(?:library|groups\/(\d+))\/items\/([A-Z0-9]+)\?(.*)$/);
+	if (!match) {
+		return null;
+	}
+	let [, groupID, key, query] = match;
+	let params = Object.fromEntries(query.split('&').map((pair) => {
+		let [name, value = ''] = pair.split('=');
+		return [name, decodeURIComponent(value)];
+	}));
+	let page = parseInt(params.page);
+	let rect = (params.rect || '').split(',').map(Number);
+	if (!page || rect.length !== 4 || rect.some(isNaN)) {
+		return null;
+	}
+	let libraryID = groupID ? Zotero.Groups.getLibraryIDFromGroupID(parseInt(groupID)) : Zotero.Libraries.userLibraryID;
+	let item = libraryID && Zotero.Items.getByLibraryAndKey(libraryID, key);
+	if (!item) {
+		return null;
+	}
+	return { item, location: { position: { pageIndex: page - 1, rects: [rect] } } };
 }
 
 /** Items whose title, creator or year match, across all libraries, regular items first */

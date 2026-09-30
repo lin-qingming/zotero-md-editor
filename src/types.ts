@@ -32,8 +32,11 @@ export type ToPage =
 	| { action: 'init'; markdown: string; lang: string; notice: string | null; strings: PageStrings }
 	| { action: 'setValue'; markdown: string }
 	| { action: 'focus' }
-	/** Insert Markdown where something was dropped, at client coordinates; `block` content gets its own paragraph */
-	| { action: 'insertAt'; markdown: string; block: boolean; x: number; y: number }
+	/**
+	 * Insert Markdown at the cursor, or where something was dropped (client coordinates);
+	 * `block` content gets its own paragraph
+	 */
+	| { action: 'insert'; markdown: string; block: boolean; point: { x: number; y: number } | null }
 	/** Answer to a request (see RequestToHost), matched by requestID */
 	| { action: 'reply'; requestID: number; value: unknown };
 
@@ -46,7 +49,12 @@ export type RequestToHost =
 	/** Search the libraries for "@" autocomplete; replies with ItemHint[] */
 	| { action: 'searchItems'; requestID: number; query: string }
 	/** Show Zotero's item picker; replies with an Insertion for the chosen items, or null */
-	| { action: 'pickItems'; requestID: number };
+	| { action: 'pickItems'; requestID: number }
+	/**
+	 * Text or annotations copied in Zotero's reader, as the "zotero/annotation" clipboard JSON;
+	 * replies with an Insertion quoting them with links back, or null
+	 */
+	| { action: 'annotationsToMarkdown'; requestID: number; json: string };
 
 export type ToHost =
 	| RequestToHost

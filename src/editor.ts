@@ -94,8 +94,10 @@ window.addEventListener('message', (event) => {
 		case 'focus':
 			vditor?.focus();
 			break;
-		case 'insertAt':
-			placeCaretAt(message.x, message.y);
+		case 'insert':
+			if (message.point) {
+				placeCaretAt(message.point.x, message.point.y);
+			}
 			insertMarkdown(message.markdown, message.block);
 			break;
 		case 'reply':
@@ -199,6 +201,7 @@ function insertMarkdown(markdown: string, block = false) {
 	if (!vditor) {
 		return;
 	}
+	ensureCaret();
 	if (block) {
 		moveToNewBlock();
 	}
@@ -224,26 +227,69 @@ async function searchHints(query: string) {
 }
 
 async function pickItems() {
-	// The picker is a modal window, so remember where the cursor was
-	let selection = window.getSelection();
-	let range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+	// The picker is a modal window; insertMarkdown puts the cursor back where it was
 	let insertion = await request<Insertion | null>({ action: 'pickItems' });
-	if (!insertion || !vditor) {
-		return;
+	if (insertion) {
+		insertMarkdown(insertion.markdown, insertion.block);
 	}
-	vditor.focus();
-	if (range) {
-		selection!.removeAllRanges();
-		selection!.addRange(range);
+}
+
+/** The editing element of the current mode; Vditor keeps hidden ones for the other modes */
+function editable(): HTMLElement | null {
+	if (!vditor) {
+		return null;
 	}
-	insertMarkdown(insertion.markdown, insertion.block);
+	let internal = (vditor as any).vditor;
+	return internal?.[vditor.getCurrentMode()]?.element ?? null;
 }
 
 /** The top-level block (paragraph, heading, list, ...) holding the cursor */
 function currentBlock(): Element | null {
-	let node = window.getSelection()?.anchorNode;
-	let element = node?.nodeType === Node.ELEMENT_NODE ? node as Element : node?.parentElement;
+	let selection = window.getSelection();
+	let node = selection?.anchorNode;
+	let root = editable();
+	if (!node || !root) {
+		return null;
+	}
+	let element = node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement;
 	return element?.closest('.vditor-reset > *') ?? null;
+}
+
+/** Is the node inside the document's text -- not the editor root itself, where Vditor parks the
+ * selection after re-rendering, and not outside the editor (a toolbar, a closed dialog) */
+function isInText(node: Node | null | undefined): boolean {
+	let root = editable();
+	return !!node && !!root && node !== root && root.contains(node);
+}
+
+/** The last cursor position the user had in the text, so inserts land there */
+let lastRange: Range | null = null;
+document.addEventListener('selectionchange', () => {
+	let selection = window.getSelection();
+	if (selection?.rangeCount && isInText(selection.anchorNode)) {
+		lastRange = selection.getRangeAt(0).cloneRange();
+	}
+});
+
+/** Put the cursor back in the text if it isn't there: where it last was, or else at the end */
+function ensureCaret() {
+	let root = editable();
+	let selection = window.getSelection();
+	if (!root || !selection || selection.rangeCount && isInText(selection.anchorNode)) {
+		return;
+	}
+	let range: Range;
+	if (lastRange && isInText(lastRange.startContainer)) {
+		range = lastRange.cloneRange();
+	}
+	else {
+		range = document.createRange();
+		range.selectNodeContents(root.lastElementChild ?? root);
+		range.collapse(false);
+	}
+	vditor?.focus();
+	selection.removeAllRanges();
+	selection.addRange(range);
 }
 
 /** Unless the cursor is in an empty paragraph already, add one after its block and move there */
@@ -267,8 +313,7 @@ function moveToNewBlock() {
 /** Put the cursor where something was dropped */
 function placeCaretAt(x: number, y: number) {
 	let position = document.caretPositionFromPoint(x, y);
-	let editable = document.querySelector('#editor .vditor-reset[contenteditable="true"]');
-	if (!position || !editable?.contains(position.offsetNode)) {
+	if (!position || !editable()?.contains(position.offsetNode)) {
 		return;
 	}
 	vditor?.focus();
@@ -354,12 +399,26 @@ function observeImages() {
 // ---------------------------------------------------------------------------------------------
 // Input
 
+// Text or annotations copied in Zotero's reader come with a "zotero/annotation" entry saying
+// where they're from; paste them as a quote linking back. (Zotero's note editor reads the same.)
+//
 // A screenshot on the clipboard arrives as a File with no accompanying text. When there is text
 // as well (e.g. cells copied from a spreadsheet, which also carry a picture of themselves), the
 // text is what was meant, so leave it to Vditor.
 function onPaste(event: ClipboardEvent) {
 	let data = event.clipboardData;
 	if (!data || !vditor) {
+		return;
+	}
+	let annotations = data.getData('zotero/annotation');
+	if (annotations) {
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		void request<Insertion | null>({ action: 'annotationsToMarkdown', json: annotations }).then((insertion) => {
+			if (insertion) {
+				insertMarkdown(insertion.markdown, insertion.block);
+			}
+		});
 		return;
 	}
 	let images = Array.from(data.files).filter((f) => f.type.startsWith('image/'));
