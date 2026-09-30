@@ -1,0 +1,16 @@
+{
+  "name": "zotero-md-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Edit Markdown attachments inside Zotero; pasted images are stored next to the file so they sync with it.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "xpi": "node scripts/build.mjs --xpi"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vditor": "^4.0.0"
+  }
+}

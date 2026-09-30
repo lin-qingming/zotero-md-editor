@@ -1,0 +1,17 @@
+md-editor-menu-edit =
+    .label = Edit in Zotero
+md-editor-menu-open-external =
+    .label = Open with External App
+md-editor-menu-new-child =
+    .label = New Markdown Note
+md-editor-menu-new-standalone =
+    .label = New Standalone Markdown Note
+md-editor-new-title = New Markdown Note
+md-editor-new-prompt = File name:
+md-editor-new-default = Untitled
+md-editor-conflict-title = File Changed on Disk
+md-editor-conflict-message = “{ $name }” was changed outside this editor after you opened it. Keep your version and overwrite the file, or discard your unsaved edits and load the version on disk?
+md-editor-conflict-keep = Keep My Version
+md-editor-conflict-load = Load Version on Disk
+md-editor-save-error = Couldn’t save “{ $name }”: { $error }
+md-editor-linked-notice = This is a linked file. Zotero doesn’t sync linked files, so this note and its images stay on this computer.

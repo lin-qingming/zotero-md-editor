@@ -1,0 +1,57 @@
+:root {
+	--notice-bg: #fff4d6;
+	--notice-fg: #6b4e00;
+	--page-bg: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--notice-bg: #3d3420;
+		--notice-fg: #f0d58a;
+		--page-bg: #2f363d;
+	}
+}
+
+html,
+body {
+	height: 100%;
+	margin: 0;
+}
+
+body {
+	display: flex;
+	flex-direction: column;
+	background: var(--page-bg);
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+#notice {
+	padding: 6px 16px;
+	font-size: 12px;
+	background: var(--notice-bg);
+	color: var(--notice-fg);
+}
+
+#notice[hidden] {
+	display: none;
+}
+
+#editor {
+	flex: 1;
+	min-height: 0;
+}
+
+/* The tab already has a frame; drop Vditor's own border */
+#editor.vditor {
+	border: 0;
+	border-radius: 0;
+}
+
+.vditor-reset {
+	font-size: 15px;
+}
+
+/* Vditor tints the editing area when it isn't focused; keep one background either way */
+.vditor-ir pre.vditor-reset {
+	background-color: var(--panel-background-color);
+}

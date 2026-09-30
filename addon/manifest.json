@@ -1,0 +1,14 @@
+{
+	"manifest_version": 2,
+	"name": "Markdown Editor",
+	"version": "0.0.0",
+	"description": "Edit Markdown attachments inside Zotero. Pasted and dropped images are saved next to the file, so they sync with it.",
+	"applications": {
+		"zotero": {
+			"id": "md-editor@linqingming.local",
+			"update_url": "https://raw.githubusercontent.com/lin-qingming/zotero-md-editor/main/updates.json",
+			"strict_min_version": "8.0",
+			"strict_max_version": "11.*"
+		}
+	}
+}

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<!-- This page renders Markdown that may have been synced from other devices or shared
+	     libraries, so only the plugin's own scripts may run in it. -->
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src resource://zotero-md-editor/; style-src resource://zotero-md-editor/ 'unsafe-inline'; font-src resource://zotero-md-editor/ data:; img-src data: blob: https: http: resource://zotero-md-editor/; media-src https:">
+	<title>Markdown Editor</title>
+	<link rel="stylesheet" href="editor.css">
+	<link rel="stylesheet" href="page.css">
+</head>
+<body>
+	<div id="notice" hidden></div>
+	<div id="editor"></div>
+	<!-- Vditor would fetch this sprite by XHR and inject it as an inline script, which the CSP
+	     above forbids; loading it here under the id Vditor checks for makes it skip that -->
+	<script id="vditorIconScript" src="vditor/dist/js/icons/ant.js"></script>
+	<script src="editor.js"></script>
+</body>
+</html>

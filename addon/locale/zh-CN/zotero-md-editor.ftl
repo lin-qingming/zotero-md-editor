@@ -1,0 +1,17 @@
+md-editor-menu-edit =
+    .label = 在 Zotero 中编辑
+md-editor-menu-open-external =
+    .label = 用外部应用打开
+md-editor-menu-new-child =
+    .label = 新建 Markdown 笔记
+md-editor-menu-new-standalone =
+    .label = 新建独立 Markdown 笔记
+md-editor-new-title = 新建 Markdown 笔记
+md-editor-new-prompt = 文件名：
+md-editor-new-default = 未命名
+md-editor-conflict-title = 文件已在磁盘上被修改
+md-editor-conflict-message = 打开后，“{ $name }”在编辑器之外被修改了。要保留你的版本并覆盖文件，还是放弃未保存的修改、加载磁盘上的版本？
+md-editor-conflict-keep = 保留我的版本
+md-editor-conflict-load = 加载磁盘上的版本
+md-editor-save-error = 无法保存“{ $name }”：{ $error }
+md-editor-linked-notice = 这是一个链接文件。Zotero 不同步链接文件，所以这篇笔记和其中的图片只保存在本机。
